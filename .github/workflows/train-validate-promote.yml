@@ -1,3 +1,4 @@
+# .github/workflows/train-validate-promote.yml
 name: train-validate-promote
 on:
   push:
@@ -8,6 +9,9 @@ jobs:
   mlops:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: PROJECT_DIR    # <-- e.g. "mlflow/Dvc-Mlflow-Pipeline"
     steps:
       - uses: actions/checkout@v4
 
@@ -21,23 +25,29 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip show dvc
 
-      - name: Export environment (secrets)
+      - name: Sanity check DVC repo
+        run: |
+          source .venv/bin/activate
+          pwd
+          ls -la
+          dvc --version
+          dvc root           # should print PROJECT_DIR path
+
+      - name: Export env (secrets)
         env:
-          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}   # e.g., http://YOUR_MLFLOW_SERVER:5000
-          MLFLOW_MODEL_NAME:   ${{ secrets.MLFLOW_MODEL_NAME }}     # e.g., iris-rf-classifier
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME:   ${{ secrets.MLFLOW_MODEL_NAME }}
           PROMOTE_MIN_ACCURACY: "0.92"
           PROMOTE_MIN_F1: "0.90"
-          MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }} # e.g., https://api.yourdomain/reload
-          MODEL_API_TOKEN:      ${{ secrets.MODEL_API_TOKEN }}      # optional
+          MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }}
+          MODEL_API_TOKEN:      ${{ secrets.MODEL_API_TOKEN }}
         run: |
           set -a
           echo "MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}"
           echo "MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME}"
-          echo "PROMOTE_MIN_ACCURACY=${PROMOTE_MIN_ACCURACY}"
-          echo "PROMOTE_MIN_F1=${PROMOTE_MIN_F1}"
           echo "MODEL_API_RELOAD_URL=${MODEL_API_RELOAD_URL}"
-          if [ -n "${MODEL_API_TOKEN}" ]; then echo "MODEL_API_TOKEN=***"; fi
           set +a
 
       - name: Reproduce DVC pipeline (force new run)
