@@ -1,41 +1,57 @@
 # .github/workflows/train-validate-promote.yml
 name: train-validate-promote
 on:
-  push:
-    branches: [ main ]
+  push: { branches: [ main ] }
   workflow_dispatch:
 
 jobs:
   mlops:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: PROJECT_DIR    # <-- e.g. "mlflow/Dvc-Mlflow-Pipeline"
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate pipeline directory
+        id: finddir
+        shell: bash
+        run: |
+          set -euo pipefail
+          # If you know the folder, keep this fast path:
+          CANDIDATE="mlflow/Dvc-Mlflow-Pipeline"
+          if [ -d "$CANDIDATE" ] && [ -f "$CANDIDATE/dvc.yaml" ]; then
+            echo "dir=$CANDIDATE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Otherwise auto-detect by scanning for dvc.yaml
+          FILE=$(git ls-files | grep -E '(?:^|/)\bdvc\.yaml$' | head -n1 || true)
+          if [ -z "$FILE" ]; then
+            echo "Could not find dvc.yaml in the repo" >&2
+            exit 1
+          fi
+          DIR=$(dirname "$FILE")
+          echo "Detected pipeline dir: $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+        with: { python-version: "3.11" }
 
       - name: Install deps
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: |
           python -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip show dvc
 
       - name: Sanity check DVC repo
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: |
           source .venv/bin/activate
-          pwd
-          ls -la
-          dvc --version
-          dvc root           # should print PROJECT_DIR path
+          pwd && ls -la
+          dvc root
 
       - name: Export env (secrets)
+        working-directory: ${{ steps.finddir.outputs.dir }}
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_MODEL_NAME:   ${{ secrets.MLFLOW_MODEL_NAME }}
@@ -44,18 +60,17 @@ jobs:
           MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }}
           MODEL_API_TOKEN:      ${{ secrets.MODEL_API_TOKEN }}
         run: |
-          set -a
-          echo "MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}"
-          echo "MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME}"
-          echo "MODEL_API_RELOAD_URL=${MODEL_API_RELOAD_URL}"
-          set +a
+          echo "MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
+          echo "MLFLOW_MODEL_NAME=$MLFLOW_MODEL_NAME"
 
-      - name: Reproduce DVC pipeline (force new run)
+      - name: Reproduce DVC pipeline (force run)
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: |
           source .venv/bin/activate
           dvc repro -f
 
-      - name: Validate & maybe promote (sets alias and calls /reload)
+      - name: Validate & maybe promote (sets alias & calls /reload)
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: |
           source .venv/bin/activate
           python -m src.validate_and_promote

@@ -1,0 +1,41 @@
+# 0) Create project folder and place files as shown
+
+# 1) Python env
+python -m venv .venv
+source .venv/bin/activate                 # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 2) Init Git + DVC (first time)
+git init
+dvc init
+dvc remote add -d localcache ./dvcstore   # optional cache
+
+# 3) Start MLflow tracking server (SQLite) in a SEPARATE terminal
+mlflow server \
+  --backend-store-uri sqlite:///mlflow.db \
+  --default-artifact-root ./mlruns \
+  --host 127.0.0.1 --port 5000
+
+# 4) Full DVC pipeline: download → prepare → train → evaluate
+dvc repro
+
+# 5) Champion–Challenger validation and conditional promotion
+python -m src.validate_and_promote
+
+# 6) Serve the latest Production model (inference API)
+uvicorn src.serve:app --host 0.0.0.0 --port 8000
+
+# 7) Test inference (Iris-like example)
+curl -X POST "http://127.0.0.1:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "records": [
+          {"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2},
+          {"sepal_length": 6.5, "sepal_width": 3.0, "petal_length": 5.2, "petal_width": 2.0}
+        ]
+      }'
+
+# 8) After training a new candidate (rerun pipeline), re-validate and (if promoted) hot-reload:
+dvc repro
+python -m src.validate_and_promote
+curl -X POST http://127.0.0.1:8000/reload
