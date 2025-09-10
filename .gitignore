@@ -215,6 +215,5 @@ artifacts/*.joblib
 logs/*.log
 .env
 mlflow.db
-commands.txt
 .dvc/cache/
 .dvc/tmp/
