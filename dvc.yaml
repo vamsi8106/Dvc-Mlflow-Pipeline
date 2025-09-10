@@ -1,0 +1,46 @@
+stages:
+  get_data:
+    cmd: python -m src.get_data
+    deps:
+      - src/get_data.py
+      - src/config.py
+      - src/logger.py
+      - params.yaml
+    outs:
+      - data/raw.csv
+
+  prepare:
+    cmd: python -m src.prepare
+    deps:
+      - src/prepare.py
+      - src/config.py
+      - src/logger.py
+      - data/raw.csv
+      - params.yaml
+    outs:
+      - data/train.csv
+      - data/test.csv
+
+  train:
+    cmd: python -m src.train
+    deps:
+      - src/train.py
+      - src/config.py
+      - src/logger.py
+      - data/train.csv
+      - params.yaml
+    outs:
+      - artifacts/model.joblib
+
+  evaluate:
+    cmd: python -m src.evaluate
+    deps:
+      - src/evaluate.py
+      - src/config.py
+      - src/logger.py
+      - artifacts/model.joblib
+      - data/test.csv
+      - params.yaml
+    metrics:
+      - metrics.json:
+          cache: false

@@ -1,0 +1,15 @@
+data:
+  url: https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv
+
+split:
+  test_size: 0.25
+  random_state: 42
+
+model:
+  n_estimators: 300
+  max_depth: 10
+
+mlflow:
+  tracking_uri: http://127.0.0.1:5000
+  experiment: dvc-mlflow-sqlite-demo
+  model_name: iris-rf-classifier

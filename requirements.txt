@@ -1,0 +1,12 @@
+dvc
+mlflow
+pandas
+numpy
+scikit-learn
+joblib
+pyyaml
+python-dotenv
+requests
+fastapi
+uvicorn
+pydantic

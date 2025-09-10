@@ -1,0 +1,118 @@
+schema: '2.0'
+stages:
+  get_data:
+    cmd: python -m src.get_data
+    deps:
+    - path: params.yaml
+      hash: md5
+      md5: 91ce9af5c4fae3346d39842c3603e1e2
+      size: 290
+    - path: src/config.py
+      hash: md5
+      md5: e7f509416874c998ca670e635b970832
+      size: 2174
+    - path: src/get_data.py
+      hash: md5
+      md5: 477ce5115652e6103e08ddbdf93e592b
+      size: 710
+    - path: src/logger.py
+      hash: md5
+      md5: cf610ff3b7fc12dd49569fdca1a05603
+      size: 853
+    outs:
+    - path: data/raw.csv
+      hash: md5
+      md5: 013d0da08d6506664ce640459139176b
+      size: 3858
+  prepare:
+    cmd: python -m src.prepare
+    deps:
+    - path: data/raw.csv
+      hash: md5
+      md5: 013d0da08d6506664ce640459139176b
+      size: 3858
+    - path: params.yaml
+      hash: md5
+      md5: 91ce9af5c4fae3346d39842c3603e1e2
+      size: 290
+    - path: src/config.py
+      hash: md5
+      md5: e7f509416874c998ca670e635b970832
+      size: 2174
+    - path: src/logger.py
+      hash: md5
+      md5: cf610ff3b7fc12dd49569fdca1a05603
+      size: 853
+    - path: src/prepare.py
+      hash: md5
+      md5: 423b148a83c494969901083043ab08f7
+      size: 1363
+    outs:
+    - path: data/test.csv
+      hash: md5
+      md5: d5146ea18c2befdb29066efd302e37e9
+      size: 741
+    - path: data/train.csv
+      hash: md5
+      md5: d17439e32974d84719f7d8d3a6bce1f7
+      size: 2073
+  train:
+    cmd: python -m src.train
+    deps:
+    - path: data/train.csv
+      hash: md5
+      md5: d17439e32974d84719f7d8d3a6bce1f7
+      size: 2073
+    - path: params.yaml
+      hash: md5
+      md5: 91ce9af5c4fae3346d39842c3603e1e2
+      size: 290
+    - path: src/config.py
+      hash: md5
+      md5: e7f509416874c998ca670e635b970832
+      size: 2174
+    - path: src/logger.py
+      hash: md5
+      md5: cf610ff3b7fc12dd49569fdca1a05603
+      size: 853
+    - path: src/train.py
+      hash: md5
+      md5: f2200b129736eed9f395abdf821088ee
+      size: 2124
+    outs:
+    - path: artifacts/model.joblib
+      hash: md5
+      md5: e9c6ee1d0e2486b1586827abe30a43b2
+      size: 478801
+  evaluate:
+    cmd: python -m src.evaluate
+    deps:
+    - path: artifacts/model.joblib
+      hash: md5
+      md5: e9c6ee1d0e2486b1586827abe30a43b2
+      size: 478801
+    - path: data/test.csv
+      hash: md5
+      md5: d5146ea18c2befdb29066efd302e37e9
+      size: 741
+    - path: params.yaml
+      hash: md5
+      md5: 91ce9af5c4fae3346d39842c3603e1e2
+      size: 290
+    - path: src/config.py
+      hash: md5
+      md5: e7f509416874c998ca670e635b970832
+      size: 2174
+    - path: src/evaluate.py
+      hash: md5
+      md5: df287e45b79c7fcb2b36e3136ecc3c10
+      size: 1656
+    - path: src/logger.py
+      hash: md5
+      md5: cf610ff3b7fc12dd49569fdca1a05603
+      size: 853
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 3fdf7ea91ddf80562d710d5371ffcddf
+      size: 187
