@@ -210,11 +210,11 @@ __marimo__/
 __pycache__/
 *.pyc
 mlruns/
-.dvc/
-.dvc/tmp/
 dvcstore/
 artifacts/*.joblib
 logs/*.log
 .env
 mlflow.db
 commands.txt
+.dvc/cache/
+.dvc/tmp/
