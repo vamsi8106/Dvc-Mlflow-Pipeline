@@ -1,0 +1,51 @@
+name: train-validate-promote
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  mlops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Export environment (secrets)
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}   # e.g., http://YOUR_MLFLOW_SERVER:5000
+          MLFLOW_MODEL_NAME:   ${{ secrets.MLFLOW_MODEL_NAME }}     # e.g., iris-rf-classifier
+          PROMOTE_MIN_ACCURACY: "0.92"
+          PROMOTE_MIN_F1: "0.90"
+          MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }} # e.g., https://api.yourdomain/reload
+          MODEL_API_TOKEN:      ${{ secrets.MODEL_API_TOKEN }}      # optional
+        run: |
+          set -a
+          echo "MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}"
+          echo "MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME}"
+          echo "PROMOTE_MIN_ACCURACY=${PROMOTE_MIN_ACCURACY}"
+          echo "PROMOTE_MIN_F1=${PROMOTE_MIN_F1}"
+          echo "MODEL_API_RELOAD_URL=${MODEL_API_RELOAD_URL}"
+          if [ -n "${MODEL_API_TOKEN}" ]; then echo "MODEL_API_TOKEN=***"; fi
+          set +a
+
+      - name: Reproduce DVC pipeline (force new run)
+        run: |
+          source .venv/bin/activate
+          dvc repro -f
+
+      - name: Validate & maybe promote (sets alias and calls /reload)
+        run: |
+          source .venv/bin/activate
+          python -m src.validate_and_promote

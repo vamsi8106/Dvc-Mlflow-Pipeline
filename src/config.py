@@ -34,11 +34,17 @@ class MLflowConfig:
     tracking_uri: str
     experiment: str
     model_name: str
+    production_alias: str
 
 @dataclass(frozen=True)
 class PromotionGates:
     min_f1: float
     min_accuracy: float
+
+@dataclass(frozen=True)
+class APIConfig:
+    reload_url: Optional[str]
+    reload_token: Optional[str]
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -47,6 +53,7 @@ class AppConfig:
     model: ModelConfig
     mlflow: MLflowConfig
     gates: PromotionGates
+    api: APIConfig
 
 def load_config() -> AppConfig:
     p = _yaml_params()
@@ -60,14 +67,24 @@ def load_config() -> AppConfig:
     tracking_uri = _get_env("MLFLOW_TRACKING_URI") or p["mlflow"]["tracking_uri"]
     experiment = p["mlflow"]["experiment"]
     model_name = _get_env("MLFLOW_MODEL_NAME") or p["mlflow"]["model_name"]
+    production_alias = _get_env("MLFLOW_PRODUCTION_ALIAS") or "production"
 
     min_f1 = float(_get_env("PROMOTE_MIN_F1") or 0.0)
     min_accuracy = float(_get_env("PROMOTE_MIN_ACCURACY") or 0.0)
+
+    reload_url = _get_env("MODEL_API_RELOAD_URL")
+    reload_token = _get_env("MODEL_API_TOKEN")
 
     return AppConfig(
         data=DataConfig(url=data_url),
         split=SplitConfig(test_size=test_size, random_state=random_state),
         model=ModelConfig(n_estimators=n_estimators, max_depth=max_depth),
-        mlflow=MLflowConfig(tracking_uri=tracking_uri, experiment=experiment, model_name=model_name),
+        mlflow=MLflowConfig(
+            tracking_uri=tracking_uri,
+            experiment=p["mlflow"]["experiment"],
+            model_name=model_name,
+            production_alias=production_alias,
+        ),
         gates=PromotionGates(min_f1=min_f1, min_accuracy=min_accuracy),
+        api=APIConfig(reload_url=reload_url, reload_token=reload_token),
     )
