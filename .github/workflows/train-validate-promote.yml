@@ -8,6 +8,17 @@ jobs:
   mlops:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Point to the ephemeral MLflow server we will start in this job
+      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+      # Your project env
+      MLFLOW_MODEL_NAME: iris-rf-classifier
+      MLFLOW_PRODUCTION_ALIAS: production
+      PROMOTE_MIN_ACCURACY: "0.92"
+      PROMOTE_MIN_F1: "0.90"
+      # Leave reload URL empty in CI unless you have a publicly reachable API
+      MODEL_API_RELOAD_URL: ""
+      MODEL_API_TOKEN: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +33,7 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip show dvc
+          pip show dvc mlflow
 
       - name: Sanity check DVC repo
         run: |
@@ -32,27 +43,39 @@ jobs:
           dvc --version
           dvc root
 
-      # Make sure your MLflow server is reachable from the runner:
-      # Use a public URL, or switch to a self-hosted runner if it's private.
-      - name: Export env (secrets)
-        env:
-          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
-          MLFLOW_MODEL_NAME:   ${{ secrets.MLFLOW_MODEL_NAME }}
-          PROMOTE_MIN_ACCURACY: "0.92"
-          PROMOTE_MIN_F1: "0.90"
-          MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }}
-          MODEL_API_TOKEN:      ${{ secrets.MODEL_API_TOKEN }}
+      - name: Start MLflow server (ephemeral SQLite)
         run: |
-          echo "MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
-          echo "MLFLOW_MODEL_NAME=$MLFLOW_MODEL_NAME"
-          echo "MODEL_API_RELOAD_URL=$MODEL_API_RELOAD_URL"
+          source .venv/bin/activate
+          nohup mlflow server \
+            --backend-store-uri sqlite:///mlflow.db \
+            --default-artifact-root ./mlruns \
+            --host 127.0.0.1 --port 5000 > mlflow_server.log 2>&1 &
+          python - <<'PY'
+          import time, requests, sys
+          for i in range(60):
+              try:
+                  r = requests.get("http://127.0.0.1:5000")
+                  print("MLflow up:", r.status_code); sys.exit(0)
+              except Exception as e:
+                  time.sleep(1)
+          raise SystemExit("MLflow did not start in time")
+          PY
 
-      - name: Reproduce DVC pipeline (force run)
+      - name: Reproduce DVC pipeline (force new run)
         run: |
           source .venv/bin/activate
           dvc repro -f
 
-      - name: Validate & maybe promote (sets alias & calls /reload)
+      - name: Validate & maybe promote (sets alias & tries /reload if configured)
         run: |
           source .venv/bin/activate
           python -m src.validate_and_promote
+
+      - name: Upload artifacts (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlruns-and-logs
+          path: |
+            mlruns
+            mlflow_server.log
+            logs
