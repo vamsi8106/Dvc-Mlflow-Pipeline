@@ -6,8 +6,8 @@ split:
   random_state: 42
 
 model:
-  n_estimators: 200
-  max_depth: 10
+  n_estimators: 300
+  max_depth: 8
 
 mlflow:
   tracking_uri: http://127.0.0.1:5000
