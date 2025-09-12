@@ -217,3 +217,4 @@ logs/*.log
 mlflow.db
 .dvc/cache/
 .dvc/tmp/
+actions-runner/

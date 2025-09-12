@@ -4,3 +4,4 @@ mlruns/
 logs/
 mlflow.db
 commands.txt
+actions-runner/
