@@ -1,24 +1,23 @@
 name: train-validate-promote
 on:
-  push:
-    branches: [ main ]
+  push: { branches: [ main ] }
   workflow_dispatch:
 
 jobs:
   mlops:
-    runs-on: ubuntu-latest
+    # Run on your self-hosted runner (configured on your laptop).
+    # If you gave it a custom label like "mlops", include it here.
+    runs-on: [self-hosted]
     timeout-minutes: 30
     env:
-      # Point to the ephemeral MLflow server we will start in this job
-      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
-      # Your project env
-      MLFLOW_MODEL_NAME: iris-rf-classifier
-      MLFLOW_PRODUCTION_ALIAS: production
-      PROMOTE_MIN_ACCURACY: "0.92"
-      PROMOTE_MIN_F1: "0.90"
-      # Leave reload URL empty in CI unless you have a publicly reachable API
-      MODEL_API_RELOAD_URL: ""
-      MODEL_API_TOKEN: ""
+      # All values come from secrets (no hard-coded URIs/ports here)
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      MLFLOW_MODEL_NAME: ${{ secrets.MLFLOW_MODEL_NAME }}
+      MLFLOW_PRODUCTION_ALIAS: ${{ secrets.MLFLOW_PRODUCTION_ALIAS }}
+      PROMOTE_MIN_ACCURACY: ${{ secrets.PROMOTE_MIN_ACCURACY }}
+      PROMOTE_MIN_F1: ${{ secrets.PROMOTE_MIN_F1 }}
+      MODEL_API_RELOAD_URL: ${{ secrets.MODEL_API_RELOAD_URL }}
+      MODEL_API_TOKEN: ${{ secrets.MODEL_API_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -33,49 +32,39 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip show dvc mlflow
 
-      - name: Sanity check DVC repo
+      - name: Check local services reachable (no secrets printed)
         run: |
-          source .venv/bin/activate
-          pwd && ls -la
-          test -f dvc.yaml
-          dvc --version
-          dvc root
+          # MLflow
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "$MLFLOW_TRACKING_URI" || true)
+          if [ "$code" = "000" ]; then
+            echo "MLflow not reachable at $MLFLOW_TRACKING_URI"; exit 1
+          else
+            echo "MLflow HTTP: $code"
+          fi
+          # API health (optional) - only checks if URL is provided
+          if [ -n "$MODEL_API_RELOAD_URL" ]; then
+            base="${MODEL_API_RELOAD_URL%/reload}"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$base/healthz" || true)
+            echo "API /healthz HTTP: ${code:-000}"
+          fi
 
-      - name: Start MLflow server (ephemeral SQLite)
-        run: |
-          source .venv/bin/activate
-          nohup mlflow server \
-            --backend-store-uri sqlite:///mlflow.db \
-            --default-artifact-root ./mlruns \
-            --host 127.0.0.1 --port 5000 > mlflow_server.log 2>&1 &
-          python - <<'PY'
-          import time, requests, sys
-          for i in range(60):
-              try:
-                  r = requests.get("http://127.0.0.1:5000")
-                  print("MLflow up:", r.status_code); sys.exit(0)
-              except Exception as e:
-                  time.sleep(1)
-          raise SystemExit("MLflow did not start in time")
-          PY
-
-      - name: Reproduce DVC pipeline (force new run)
+      - name: Reproduce DVC pipeline (force run)
         run: |
           source .venv/bin/activate
           dvc repro -f
 
-      - name: Validate & maybe promote (sets alias & tries /reload if configured)
+      - name: Validate & maybe promote (alias) and auto-/reload
         run: |
           source .venv/bin/activate
           python -m src.validate_and_promote
 
-      - name: Upload artifacts (optional)
+      - name: Upload logs (optional)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mlruns-and-logs
+          name: pipeline-logs
           path: |
-            mlruns
-            mlflow_server.log
             logs
+            dvc.lock
+            metrics.json
